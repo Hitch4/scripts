@@ -1,0 +1,52 @@
+========================================
+  ISP MANUAL SETUP (no script needed)
+========================================
+
+1. CHECK INTERFACES
+   ip -c a
+   (match MAC with Proxmox Hardware tab)
+   WAN=ens19  HQ=ens20  BR=ens21
+
+2. INSTALL PACKAGES
+   apt-get update && apt-get install -y mc iptables tzdata chrony
+
+3. ENABLE IP FORWARD
+   sed -i 's/net.ipv4.ip_forward.*/net.ipv4.ip_forward = 1/' /etc/net/sysctl.conf
+   sysctl -w net.ipv4.ip_forward=1
+
+4. INTERFACE -> HQ-RTR (172.16.1.1/28)
+   mkdir -p /etc/net/ifaces/ens20
+   printf "BOOTPROTO=static\nTYPE=eth\nDISABLED=no\nNM_CONTROLLED=no\n" \
+     > /etc/net/ifaces/ens20/options
+   echo "172.16.1.1/28" > /etc/net/ifaces/ens20/ipv4address
+
+5. INTERFACE -> BR-RTR (172.16.2.1/28)
+   mkdir -p /etc/net/ifaces/ens21
+   printf "BOOTPROTO=static\nTYPE=eth\nDISABLED=no\nNM_CONTROLLED=no\n" \
+     > /etc/net/ifaces/ens21/options
+   echo "172.16.2.1/28" > /etc/net/ifaces/ens21/ipv4address
+
+6. RESTART NETWORK
+   systemctl restart network
+
+7. NAT
+   iptables -t nat -A POSTROUTING -o ens19 -j MASQUERADE
+   iptables-save > /etc/sysconfig/iptables
+   systemctl enable --now iptables
+
+8. HOSTNAME
+   hostnamectl set-hostname isp.au-team.irpo
+
+========================================
+  DOWNLOAD SCRIPTS AFTER ISP IS READY:
+========================================
+
+   curl -L https://gist.githubusercontent.com/NAME/ID/raw/02_HQ-RTR.sh -o 02_HQ-RTR.sh
+   bash 02_HQ-RTR.sh
+
+========================================
+  VERIFY
+========================================
+   ip -c a                    -- interfaces ok
+   iptables -t nat -L -n      -- MASQUERADE present
+   ping 172.16.1.2            -- ping HQ-RTR (if configured)
